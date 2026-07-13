@@ -1,56 +1,318 @@
 #!/bin/bash
 
+##################################################
+#
+# BatteryMQTT
+# Version 1.0.0
+#
+# ADVic20
+#
+##################################################
+
+VERSION="1.0.0"
+
 CONFIG="/etc/batterymqtt/config.conf"
 
+########################################
 # Load configuration
-if [ ! -f "$CONFIG" ]; then
-    echo "Configuration file not found: $CONFIG"
-    exit 1
-fi
+########################################
 
-source "$CONFIG"
+load_config() {
 
-echo "BatteryMQTT started"
-echo "Device: $DEVICE_NAME"
+    if [ ! -f "$CONFIG" ]; then
+        echo "Configuration file not found."
+        exit 1
+    fi
+
+    source "$CONFIG"
+
+}
+
+########################################
+# Logger
+########################################
+
+log() {
+
+    echo "[BatteryMQTT] $1"
+
+}
+
+########################################
+# Check MQTT
+########################################
+
+check_mqtt() {
+
+    if ! command -v mosquitto_pub >/dev/null 2>&1; then
+
+        log "mosquitto_pub not installed."
+
+        exit 1
+
+    fi
+
+}
+
+########################################
+# Variables
+########################################
+
+BATTERY=""
+AC_ADAPTER=""
+
+BATTERY_CAPACITY=""
+BATTERY_STATUS=""
+AC_STATUS=""
+
+########################################
+# Main initialization
+########################################
+
+load_config
+
+check_mqtt
+
+
+
+########################################
+# MQTT Discovery
+########################################
+
+publish_discovery() {
+
+    log "Publishing MQTT Discovery..."
+
+
+    ####################################
+    # Battery Sensor
+    ####################################
+
+    mosquitto_pub \
+    -h "$MQTT_HOST" \
+    -p "$MQTT_PORT" \
+    -u "$MQTT_USER" \
+    -P "$MQTT_PASS" \
+    -r \
+    -t "homeassistant/sensor/${DEVICE_ID}_battery/config" \
+    -m "{
+\"name\":\"Battery\",
+\"unique_id\":\"${DEVICE_ID}_battery\",
+\"state_topic\":\"BatteryMQTT/${DEVICE_ID}/battery\",
+\"unit_of_measurement\":\"%\",
+\"device_class\":\"battery\",
+\"state_class\":\"measurement\",
+\"device\":{
+\"identifiers\":[\"${DEVICE_ID}\"],
+\"name\":\"${DEVICE_NAME}\",
+\"manufacturer\":\"ADVic20\",
+\"model\":\"BatteryMQTT\",
+\"sw_version\":\"${VERSION}\"
+}
+}"
+
+
+    ####################################
+    # Battery Status Sensor
+    ####################################
+
+    mosquitto_pub \
+    -h "$MQTT_HOST" \
+    -p "$MQTT_PORT" \
+    -u "$MQTT_USER" \
+    -P "$MQTT_PASS" \
+    -r \
+    -t "homeassistant/sensor/${DEVICE_ID}_status/config" \
+    -m "{
+\"name\":\"Battery Status\",
+\"unique_id\":\"${DEVICE_ID}_status\",
+\"state_topic\":\"BatteryMQTT/${DEVICE_ID}/status\",
+\"device\":{
+\"identifiers\":[\"${DEVICE_ID}\"],
+\"name\":\"${DEVICE_NAME}\",
+\"manufacturer\":\"ADVic20\",
+\"model\":\"BatteryMQTT\",
+\"sw_version\":\"${VERSION}\"
+}
+}"
+
+
+    ####################################
+    # AC Adapter Sensor
+    ####################################
+
+    mosquitto_pub \
+    -h "$MQTT_HOST" \
+    -p "$MQTT_PORT" \
+    -u "$MQTT_USER" \
+    -P "$MQTT_PASS" \
+    -r \
+    -t "homeassistant/binary_sensor/${DEVICE_ID}_ac/config" \
+    -m "{
+\"name\":\"AC Adapter\",
+\"unique_id\":\"${DEVICE_ID}_ac\",
+\"state_topic\":\"BatteryMQTT/${DEVICE_ID}/ac\",
+\"payload_on\":\"Connected\",
+\"payload_off\":\"Disconnected\",
+\"device_class\":\"plug\",
+\"device\":{
+\"identifiers\":[\"${DEVICE_ID}\"],
+\"name\":\"${DEVICE_NAME}\",
+\"manufacturer\":\"ADVic20\",
+\"model\":\"BatteryMQTT\",
+\"sw_version\":\"${VERSION}\"
+}
+}"
+
+
+    log "MQTT Discovery published."
+
+}
+
+########################################
+# Find Battery
+########################################
+
+find_battery() {
+
+    BATTERY=$(ls /sys/class/power_supply/ | grep '^BAT' | head -n 1)
+
+    if [ -z "$BATTERY" ]; then
+        log "No battery detected."
+        return 1
+    fi
+
+    log "Battery detected: $BATTERY"
+
+    return 0
+}
+
+
+########################################
+# Find AC Adapter
+########################################
+
+find_ac_adapter() {
+
+    AC_ADAPTER=$(ls /sys/class/power_supply/ | grep -E '^(AC|ACAD|ADP)' | head -n 1)
+
+    if [ -z "$AC_ADAPTER" ]; then
+        log "No AC adapter detected."
+        return 1
+    fi
+
+    log "AC adapter detected: $AC_ADAPTER"
+
+    return 0
+}
+
+########################################
+# Publish Battery State
+########################################
+
+publish_state() {
+
+    if [ -z "$BATTERY" ]; then
+        log "No battery available."
+        return
+    fi
+
+
+    BATTERY_CAPACITY=$(cat /sys/class/power_supply/$BATTERY/capacity)
+
+    BATTERY_STATUS=$(cat /sys/class/power_supply/$BATTERY/status)
+    mosquitto_pub \
+    -h "$MQTT_HOST" \
+    -p "$MQTT_PORT" \
+    -u "$MQTT_USER" \
+    -P "$MQTT_PASS" \
+    -t "BatteryMQTT/$DEVICE_ID/battery" \
+    -m "$BATTERY_CAPACITY"
+
+
+    mosquitto_pub \
+    -h "$MQTT_HOST" \
+    -p "$MQTT_PORT" \
+    -u "$MQTT_USER" \
+    -P "$MQTT_PASS" \
+    -t "BatteryMQTT/$DEVICE_ID/status" \
+    -m "$BATTERY_STATUS"
+
+
+
+    if [ -n "$AC_ADAPTER" ]; then
+
+        AC_STATE=$(cat /sys/class/power_supply/$AC_ADAPTER/online)
+
+        if [ "$AC_STATE" = "1" ]; then
+            AC_VALUE="Connected"
+        else
+            AC_VALUE="Disconnected"
+        fi
+
+
+        mosquitto_pub \
+        -h "$MQTT_HOST" \
+        -p "$MQTT_PORT" \
+        -u "$MQTT_USER" \
+        -P "$MQTT_PASS" \
+        -t "BatteryMQTT/$DEVICE_ID/ac" \
+        -m "$AC_VALUE"
+
+    fi
+
+
+    log "Battery: $BATTERY_CAPACITY%"
+    log "Status: $BATTERY_STATUS"
+
+}
+
+########################################
+# Generate Device ID
+########################################
+
+DEVICE_ID=$(echo "$DEVICE_NAME" \
+    | tr '[:upper:]' '[:lower:]' \
+    | tr ' ' '_' \
+    | tr -cd '[:alnum:]_')
+
+
+log "BatteryMQTT v$VERSION"
+
+log "Device Name : $DEVICE_NAME"
+
+log "Device ID   : $DEVICE_ID"
+
+publish_discovery
+find_battery
+
+find_ac_adapter
+
+publish_state
+
+########################################
+# Main Loop
+########################################
 
 while true
 do
 
-    # Detect battery
-    BATTERY=$(ls /sys/class/power_supply/ | grep '^BAT' | head -n 1)
+    find_battery
 
-    if [ -z "$BATTERY" ]; then
-        echo "No battery detected. Waiting 60 seconds..."
-        sleep 60
-        continue
+    find_ac_adapter
+
+    if [ -n "$BATTERY" ]; then
+
+        publish_state
+
+    else
+
+        log "Waiting for battery..."
+
     fi
 
-    echo "Battery detected: $BATTERY"
-
-    CAPACITY=$(cat /sys/class/power_supply/$BATTERY/capacity)
-    STATUS=$(cat /sys/class/power_supply/$BATTERY/status)
-
-    echo "Battery: $CAPACITY%"
-    echo "Status: $STATUS"
-
-    # Publish battery percentage
-    mosquitto_pub \
-    -h "$MQTT_HOST" \
-    -p "$MQTT_PORT" \
-    -u "$MQTT_USER" \
-    -P "$MQTT_PASS" \
-    -t "BatteryMQTT/$DEVICE_NAME/battery" \
-    -m "$CAPACITY"
-
-    # Publish battery status
-    mosquitto_pub \
-    -h "$MQTT_HOST" \
-    -p "$MQTT_PORT" \
-    -u "$MQTT_USER" \
-    -P "$MQTT_PASS" \
-    -t "BatteryMQTT/$DEVICE_NAME/status" \
-    -m "$STATUS"
 
     sleep 60
 
 done
+
