@@ -1,24 +1,54 @@
 # BatteryMQTT
 
-BatteryMQTT is a lightweight Linux utility that publishes battery status and percentage to an MQTT broker, making it easy to integrate with Home Assistant.
+BatteryMQTT is a lightweight MQTT battery monitoring service for Linux systems.
 
-It is designed for systems with a battery, such as laptops used as home servers running Proxmox VE, Debian, or Ubuntu.
+It allows you to monitor a device battery status in **Home Assistant** using MQTT Discovery, without manually creating sensors.
+
+Designed for:
+
+* Proxmox servers running on laptops
+* Debian / Ubuntu systems
+* Linux devices with ACPI battery support
 
 ## Features
 
-* 🔋 Publishes battery percentage.
-* ⚡ Publishes battery status (Charging, Discharging, Full, etc.).
-* 📡 Sends data through MQTT.
-* ⚙️ Interactive installation wizard.
-* 🚀 Automatically starts on system boot.
-* 🖥️ Compatible with Proxmox VE, Debian, and Ubuntu.
+✅ Automatic MQTT Discovery
+✅ Home Assistant device creation
+✅ Battery percentage monitoring
+✅ Battery charging status
+✅ AC adapter status
+✅ Automatic battery detection
+✅ Runs as a systemd service
+✅ Works without a battery installed (wait mode)
+
+## Home Assistant Integration
+
+After installation, BatteryMQTT automatically creates a device:
+
+```
+Device:
+  Proxmox_Cano
+
+Entities:
+  🔋 Battery
+  ⚡ Battery Status
+  🔌 AC Adapter
+```
+
+No manual `configuration.yaml` changes are required.
 
 ## Requirements
 
-* Linux (Proxmox VE, Debian, or Ubuntu)
-* A system with a detectable battery
-* An MQTT broker (such as Mosquitto)
-* Root or `sudo` privileges
+* Linux system with ACPI battery support
+* MQTT broker (Mosquitto recommended)
+* Home Assistant with MQTT integration enabled
+
+Install dependencies:
+
+```bash
+apt update
+apt install mosquitto-clients -y
+```
 
 ## Installation
 
@@ -28,58 +58,108 @@ Clone the repository:
 git clone https://github.com/ADVic20/BatteryMQTT.git
 ```
 
-Enter the project directory:
+Enter the directory:
 
 ```bash
 cd BatteryMQTT
 ```
 
-Make the installer executable:
-
-```bash
-chmod +x install.sh
-```
-
 Run the installer:
-
-### Proxmox VE (root user)
 
 ```bash
 ./install.sh
 ```
 
-### Debian / Ubuntu (regular user)
+The installer will ask for:
 
-```bash
-sudo ./install.sh
+```
+Device name
+MQTT broker IP
+MQTT username
+MQTT password
 ```
 
-During installation, BatteryMQTT will ask for:
+Example:
 
-* Device name
-* MQTT broker IP address
-* MQTT username
-* MQTT password
+```
+Device name: Proxmox_Cano
+MQTT Broker IP: 192.168.0.166
+MQTT Username: mqtt_user
+MQTT Password: ********
+```
 
-The installer will automatically:
+## Service Commands
 
-* Install required dependencies.
-* Save the configuration.
-* Install the BatteryMQTT service.
-* Enable automatic startup.
-* Start the service.
-
-After installation, you can check the service status:
+Check status:
 
 ```bash
 systemctl status batterymqtt
 ```
 
-Restart the service:
+Restart service:
 
 ```bash
 systemctl restart batterymqtt
 ```
+
+Stop service:
+
+```bash
+systemctl stop batterymqtt
+```
+
+View logs:
+
+```bash
+journalctl -u batterymqtt -f
+```
+
+## MQTT Topics
+
+Battery percentage:
+
+```
+BatteryMQTT/<device>/battery
+```
+
+Battery status:
+
+```
+BatteryMQTT/<device>/status
+```
+
+AC adapter:
+
+```
+BatteryMQTT/<device>/ac
+```
+
+Example:
+
+```
+BatteryMQTT/Proxmox_cano/battery 85
+BatteryMQTT/Proxmox_cano/status Charging
+BatteryMQTT/Proxmox_cano/ac Connected
+```
+
+## Battery Support
+
+BatteryMQTT reads information from:
+
+```
+/sys/class/power_supply/
+```
+
+Supported information depends on the hardware battery controller.
+
+Available information may include:
+
+* Battery capacity
+* Charging status
+* AC connection
+* Battery health information (if supported)
+
+## Uninstall
 
 Stop the service:
 
@@ -87,33 +167,39 @@ Stop the service:
 systemctl stop batterymqtt
 ```
 
+Disable startup:
 
-## How It Works
+```bash
+systemctl disable batterymqtt
+```
 
-After installation, BatteryMQTT periodically reads your system's battery information and publishes it to your configured MQTT broker.
+Remove files:
 
-Home Assistant can then use these MQTT topics to display battery information or trigger automations.
+```bash
+rm -rf /etc/batterymqtt
+rm /usr/local/bin/batterymqtt
+rm /etc/systemd/system/batterymqtt.service
+```
 
-## Compatibility
+Reload systemd:
 
-* ✅ Proxmox VE
-* ✅ Debian
-* ✅ Ubuntu
+```bash
+systemctl daemon-reload
+```
 
-## Roadmap
+## Version
 
-Upcoming releases will include:
+Current version:
 
-* MQTT Discovery for Home Assistant
-* `uninstall.sh`
-* `update.sh`
-* Configurable publishing interval
-* Additional battery information when available
+```
+1.0.0
+```
 
 ## License
 
 This project is licensed under the MIT License.
 
-## Contributing
+## Author
 
-Contributions, bug reports, feature requests, and pull requests are welcome. Feel free to open an issue if you have ideas or encounter any problems.
+ADVic20
+
