@@ -34,28 +34,59 @@ Enter the project directory:
 cd BatteryMQTT
 ```
 
+Make the installer executable:
+
+```bash
+chmod +x install.sh
+```
+
 Run the installer:
 
-### If you are logged in as **root** (Proxmox):
+### Proxmox VE (root user)
 
 ```bash
 ./install.sh
 ```
 
-### If you are using a regular user (Debian/Ubuntu):
+### Debian / Ubuntu (regular user)
 
 ```bash
 sudo ./install.sh
 ```
 
-During installation, you will be prompted for:
+During installation, BatteryMQTT will ask for:
 
 * Device name
 * MQTT broker IP address
 * MQTT username
 * MQTT password
 
-The installer will automatically configure BatteryMQTT and install it as a system service.
+The installer will automatically:
+
+* Install required dependencies.
+* Save the configuration.
+* Install the BatteryMQTT service.
+* Enable automatic startup.
+* Start the service.
+
+After installation, you can check the service status:
+
+```bash
+systemctl status batterymqtt
+```
+
+Restart the service:
+
+```bash
+systemctl restart batterymqtt
+```
+
+Stop the service:
+
+```bash
+systemctl stop batterymqtt
+```
+
 
 ## How It Works
 
