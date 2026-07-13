@@ -36,6 +36,14 @@ cd BatteryMQTT
 
 Run the installer:
 
+### If you are logged in as **root** (Proxmox):
+
+```bash
+./install.sh
+```
+
+### If you are using a regular user (Debian/Ubuntu):
+
 ```bash
 sudo ./install.sh
 ```
