@@ -2,37 +2,55 @@
 
 CONFIG="/etc/batterymqtt/config.conf"
 
-source "$CONFIG"
-
-BATTERY=$(ls /sys/class/power_supply/ | grep BAT | head -n 1)
-
-if [ -z "$BATTERY" ]; then
-    echo "No se encontró batería"
+# Load configuration
+if [ ! -f "$CONFIG" ]; then
+    echo "Configuration file not found: $CONFIG"
     exit 1
 fi
+
+source "$CONFIG"
+
+echo "BatteryMQTT started"
+echo "Device: $DEVICE_NAME"
 
 while true
 do
 
-CAPACITY=$(cat /sys/class/power_supply/$BATTERY/capacity)
-STATUS=$(cat /sys/class/power_supply/$BATTERY/status)
+    # Detect battery
+    BATTERY=$(ls /sys/class/power_supply/ | grep '^BAT' | head -n 1)
 
-mosquitto_pub \
--h "$MQTT_HOST" \
--p "$MQTT_PORT" \
--u "$MQTT_USER" \
--P "$MQTT_PASS" \
--t "BatteryMQTT/$DEVICE_NAME/battery" \
--m "$CAPACITY"
+    if [ -z "$BATTERY" ]; then
+        echo "No battery detected. Waiting 60 seconds..."
+        sleep 60
+        continue
+    fi
 
-mosquitto_pub \
--h "$MQTT_HOST" \
--p "$MQTT_PORT" \
--u "$MQTT_USER" \
--P "$MQTT_PASS" \
--t "BatteryMQTT/$DEVICE_NAME/status" \
--m "$STATUS"
+    echo "Battery detected: $BATTERY"
 
-sleep 60
+    CAPACITY=$(cat /sys/class/power_supply/$BATTERY/capacity)
+    STATUS=$(cat /sys/class/power_supply/$BATTERY/status)
+
+    echo "Battery: $CAPACITY%"
+    echo "Status: $STATUS"
+
+    # Publish battery percentage
+    mosquitto_pub \
+    -h "$MQTT_HOST" \
+    -p "$MQTT_PORT" \
+    -u "$MQTT_USER" \
+    -P "$MQTT_PASS" \
+    -t "BatteryMQTT/$DEVICE_NAME/battery" \
+    -m "$CAPACITY"
+
+    # Publish battery status
+    mosquitto_pub \
+    -h "$MQTT_HOST" \
+    -p "$MQTT_PORT" \
+    -u "$MQTT_USER" \
+    -P "$MQTT_PASS" \
+    -t "BatteryMQTT/$DEVICE_NAME/status" \
+    -m "$STATUS"
+
+    sleep 60
 
 done
