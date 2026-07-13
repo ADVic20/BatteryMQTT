@@ -95,10 +95,10 @@ install_program() {
 
     echo "[3/6] Installing BatteryMQTT..."
 
-    if [ ! -f "batterymqtt" ]; then
-        echo "Error: batterymqtt.sh not found."
-        exit 1
-    fi
+if [ ! -s "$SCRIPT_DIR/batterymqtt" ]; then
+    echo "Error: BatteryMQTT executable not found or is empty."
+    exit 1
+fi
 
     cp batterymqtt.sh "$INSTALL_DIR/batterymqtt"
     chmod +x "$INSTALL_DIR/batterymqtt"
