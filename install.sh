@@ -11,26 +11,31 @@ CONFIG_FILE="$CONFIG_DIR/config.conf"
 INSTALL_DIR="/usr/local/bin"
 SERVICE_FILE="/etc/systemd/system/batterymqtt.service"
 
+# Directory where install.sh is located
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 #############################################
 # Root Check
 #############################################
 
 check_root() {
+
     if [ "$EUID" -ne 0 ]; then
         echo "======================================"
         echo "      BatteryMQTT Installer"
         echo "======================================"
-        echo ""
+        echo
         echo "This installer must be run as root."
-        echo ""
+        echo
         echo "Proxmox VE:"
         echo "  ./install.sh"
-        echo ""
+        echo
         echo "Debian / Ubuntu:"
         echo "  sudo ./install.sh"
-        echo ""
+        echo
         exit 1
     fi
+
 }
 
 #############################################
@@ -40,13 +45,20 @@ check_root() {
 install_dependencies() {
 
     if command -v mosquitto_pub >/dev/null 2>&1; then
+        echo "[1/6] Dependencies already installed."
         return
     fi
 
     echo "[1/6] Installing mosquitto-clients..."
 
-    apt update
-    apt install -y mosquitto-clients
+    if command -v apt >/dev/null 2>&1; then
+        apt update
+        apt install -y mosquitto-clients
+    else
+        echo "Unsupported package manager."
+        exit 1
+    fi
+
 }
 
 #############################################
@@ -55,9 +67,9 @@ install_dependencies() {
 
 collect_configuration() {
 
-    echo ""
+    echo
     echo "BatteryMQTT Configuration"
-    echo ""
+    echo
 
     read -rp "Device name: " DEVICE_NAME
     read -rp "MQTT Broker IP: " MQTT_HOST
@@ -95,18 +107,20 @@ install_program() {
 
     echo "[3/6] Installing BatteryMQTT..."
 
-if [ ! -s "$SCRIPT_DIR/batterymqtt" ]; then
-    echo "Error: BatteryMQTT executable not found or is empty."
-    exit 1
-fi
+    if [ ! -f "$SCRIPT_DIR/batterymqtt" ]; then
+        echo "Error: batterymqtt not found."
+        echo "Expected location:"
+        echo "$SCRIPT_DIR/batterymqtt"
+        exit 1
+    fi
 
-    cp batterymqtt.sh "$INSTALL_DIR/batterymqtt"
+    cp "$SCRIPT_DIR/batterymqtt" "$INSTALL_DIR/batterymqtt"
     chmod +x "$INSTALL_DIR/batterymqtt"
 
 }
 
 #############################################
-# Create Service
+# Create systemd Service
 #############################################
 
 create_service() {
@@ -136,7 +150,7 @@ EOF
 
 enable_service() {
 
-    echo "[5/6] Starting BatteryMQTT..."
+    echo "[5/6] Enabling service..."
 
     systemctl daemon-reload
     systemctl enable batterymqtt
@@ -150,17 +164,17 @@ enable_service() {
 
 finish() {
 
-    echo ""
+    echo
     echo "======================================"
     echo " BatteryMQTT installed successfully!"
     echo "======================================"
-    echo ""
+    echo
     echo "Useful commands:"
-    echo ""
+    echo
     echo "systemctl status batterymqtt"
     echo "systemctl restart batterymqtt"
     echo "systemctl stop batterymqtt"
-    echo ""
+    echo
 
 }
 
@@ -176,4 +190,3 @@ install_program
 create_service
 enable_service
 finish
-```
