@@ -95,7 +95,7 @@ install_program() {
 
     echo "[3/6] Installing BatteryMQTT..."
 
-    if [ ! -f "batterymqtt.sh" ]; then
+    if [ ! -f "batterymqtt" ]; then
         echo "Error: batterymqtt.sh not found."
         exit 1
     fi
